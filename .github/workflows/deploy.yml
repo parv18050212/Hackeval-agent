@@ -1,0 +1,60 @@
+name: 🚀 Deploy HackEval Agent to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  TARGET_TAG_KEY: ${{ secrets.TARGET_TAG_KEY }}
+  TARGET_TAG_VALUE: ${{ secrets.TARGET_TAG_VALUE }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Build & Deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔐 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🐳 Build, tag, and push Docker image
+        env:
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::7}
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: 🛰️ Trigger deployment on EC2 instances via SSM
+        run: |
+          IMAGE_TAG=${{ env.IMAGE_TAG }}
+          echo "Deploying new image tag: $IMAGE_TAG"
+
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:${{ env.TARGET_TAG_KEY }},Values=${{ env.TARGET_TAG_VALUE }}" \
+            --comment "Deploy hackeval:$IMAGE_TAG" \
+            --parameters 'commands=["/usr/local/bin/hackeval_update_image.sh", "'"$IMAGE_TAG"'"]' \
+            --timeout-seconds 600 \
+            --region ${{ env.AWS_REGION }}
