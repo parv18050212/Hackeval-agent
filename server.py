@@ -193,3 +193,7 @@ async def list_jobs():
 @app.get("/")
 def root():
     return {"message": "HackEval Agent API is running!"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

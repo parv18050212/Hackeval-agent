@@ -1,7 +1,7 @@
 python-dotenv
 langchain-core
 langchain-openai
-pydantic==1.10.13 
+pydantic
 python-pptx
 pypdf
 Pillow
@@ -13,3 +13,4 @@ openpyxl
 python-dotenv
 fastapi
 uvicorn
+python-multipart

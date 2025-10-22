@@ -1,0 +1,26 @@
+name: Start ASG (one-click)
+
+on:
+  workflow_dispatch:
+    inputs:
+      desired:
+        description: 'Desired capacity to set'
+        required: false
+        default: '2'
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Set desired capacity
+        run: |
+          DESIRED=${{ github.event.inputs.desired }}
+          echo "Setting ASG ${{ secrets.ASG_NAME }} desired to $DESIRED"
+          aws autoscaling set-desired-capacity --auto-scaling-group-name "${{ secrets.ASG_NAME }}" --desired-capacity $DESIRED --honor-cooldown
