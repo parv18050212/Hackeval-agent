@@ -1,9 +1,14 @@
-name: 🚀 Deploy HackEval Agent to AWS
+name: "🚀 Deploy HackEval Agent to AWS"
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Optional: image tag to deploy (if empty, the workflow will build and push the short commit SHA)'
+        required: false
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -11,6 +16,7 @@ env:
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
   TARGET_TAG_KEY: ${{ secrets.TARGET_TAG_KEY }}
   TARGET_TAG_VALUE: ${{ secrets.TARGET_TAG_VALUE }}
+  ASG_NAME: ${{ secrets.ASG_NAME }}
 
 permissions:
   contents: read
@@ -33,28 +39,36 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: 🔐 Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: 🐳 Build, tag, and push Docker image
-        env:
-          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+      - name: Determine image tag
+        id: determine-tag
         run: |
-          IMAGE_TAG=${GITHUB_SHA::7}
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            echo "Using provided image_tag: $IMAGE_TAG"
+            # we assume the tag already exists in ECR if provided
+          else
+            IMAGE_TAG=${GITHUB_SHA::7}
+            echo "No image_tag provided. Will build tag: $IMAGE_TAG"
+          fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: 🐳 Build and push Docker image (when no external tag provided)
+        if: ${{ github.event.inputs.image_tag == '' }}
+        run: |
+          IMAGE_URI=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+          docker build -t ${IMAGE_URI} .
+          docker push ${IMAGE_URI}
 
       - name: 🛰️ Trigger deployment on EC2 instances via SSM
         run: |
-          IMAGE_TAG=${{ env.IMAGE_TAG }}
-          echo "Deploying new image tag: $IMAGE_TAG"
-
+          # IMAGE_TAG was exported to GITHUB_ENV by previous step
+          echo "Deploying image tag: $IMAGE_TAG"
           aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=tag:${{ env.TARGET_TAG_KEY }},Values=${{ env.TARGET_TAG_VALUE }}" \
-            --comment "Deploy hackeval:$IMAGE_TAG" \
-            --parameters 'commands=["/usr/local/bin/hackeval_update_image.sh", "'"$IMAGE_TAG"'"]' \
+            --comment "Deploy hackeval:${IMAGE_TAG}" \
+            --parameters commands=["/usr/local/bin/hackeval_update_image.sh","${IMAGE_TAG}"] \
             --timeout-seconds 600 \
-            --region ${{ env.AWS_REGION }}
+            --region "${{ env.AWS_REGION }}"
