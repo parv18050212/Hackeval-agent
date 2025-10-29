@@ -1,4 +1,4 @@
-name: "🚀 Deploy HackEval Agent to AWS"
+name: "Deploy HackEval Agent to AWS"
 
 on:
   push:
