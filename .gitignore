@@ -1,2 +1,5 @@
 .agent/
 .env
+ppts/
+uploaded_files/
+__pycache__/
