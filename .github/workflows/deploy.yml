@@ -3,7 +3,7 @@ name: "Deploy HackEval Agent to AWS"
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
     inputs:
       image_tag:
