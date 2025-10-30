@@ -56,18 +56,21 @@ async def process_file(
             # 2) Diagram summary - FIXED
             try:
                 img_agent = WorkflowAnalysisAgent()
-                
-                # Try different method names that might exist
-                if hasattr(img_agent, 'analyze_workflow'):
-                    report = img_agent.analyze_workflow(file_path)
-                elif hasattr(img_agent, 'analyze'):
-                    report = img_agent.analyze(file_path)
-                elif hasattr(img_agent, 'evaluate'):
-                    report = img_agent.evaluate(file_path)
+
+                # Try the correct method name first
+                if hasattr(img_agent, 'analyze_workflows'): # Use the correct method name
+                    report = img_agent.analyze_workflows(file_path) # Use the correct method name
+                # You can remove or comment out the checks for 'analyze' and 'evaluate'
+                # if they are definitely not used in your image_eval.py
+                # elif hasattr(img_agent, 'analyze'):
+                #     report = img_agent.analyze(file_path)
+                # elif hasattr(img_agent, 'evaluate'):
+                #     report = img_agent.evaluate(file_path)
                 else:
-                    print(f"  -> Diagram summary skipped: No suitable method found on WorkflowAnalysisAgent")
+                    # Updated error message to reflect the expected method
+                    print(f"  -> Diagram summary skipped: No suitable method 'analyze_workflows' found on WorkflowAnalysisAgent")
                     report = None
-                
+
                 if report:
                     # Handle different return types - FIXED
                     if hasattr(report, "model_dump"):

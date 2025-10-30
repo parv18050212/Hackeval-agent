@@ -261,7 +261,7 @@ class _LLMInvoker:
         self.limiter = get_text_limiter()
 
     def _llm(self) -> ChatOpenAI:
-        return ChatOpenAI(model=self.model, api_key=self.api_key, temperature=0.0, top_p=0.0)
+        return ChatOpenAI(model=self.model, api_key=self.api_key, temperature=0.0, model_kwargs={"top_p": 0.0})
 
     async def ainvoke_json(self, messages, parser: JsonOutputParser):
         last_err = None
