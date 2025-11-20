@@ -1,8 +1,7 @@
 import os
 import glob
 import asyncio
-import json
-from typing import List, Optional
+from typing import List
 from dotenv import load_dotenv
 from Agents.project_context import ProjectAnalysisContext
 from Agents.scoring_agent import ScoringAgent, CombinedAgent
@@ -68,7 +67,7 @@ async def process_file(
                 #     report = img_agent.evaluate(file_path)
                 else:
                     # Updated error message to reflect the expected method
-                    print(f"  -> Diagram summary skipped: No suitable method 'analyze_workflows' found on WorkflowAnalysisAgent")
+                    print("  -> Diagram summary skipped: No suitable method 'analyze_workflows' found on WorkflowAnalysisAgent")
                     report = None
 
                 if report:

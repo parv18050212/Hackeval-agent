@@ -1,5 +1,7 @@
 import os
 from typing import Any, Dict, List, Optional
+# Qdrant integration
+from qdrant_integration import ingest_text, search
 
 class ProjectAnalysisContext:
     def __init__(self, file_path: str):
@@ -36,6 +38,16 @@ class ProjectAnalysisContext:
         self.raw_text = text or ""
         self.images_base64 = images_b64 or []
         self.images_meta = images_meta or []
+
+    def store_context_embedding(self, context_text: str, payload: dict | None = None):
+        """Store project context embedding in Qdrant."""
+        if payload is None:
+            payload = {"context_text": context_text}
+        return ingest_text(context_text, payload)
+
+    def search_similar_context(self, query: str, top_k: int = 5):
+        """Search for similar project contexts in Qdrant."""
+        return search(query, top_k)
 
     # -------- workflow/diagram --------
     def update_workflow_results(self, report: Dict[str, Any]):

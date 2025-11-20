@@ -14,3 +14,5 @@ python-dotenv
 fastapi
 uvicorn
 python-multipart
+qdrant-client
+sentence-transformers

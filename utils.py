@@ -1,6 +1,5 @@
 import os
 import re
-import sys
 import json
 import time
 import shutil
@@ -11,12 +10,23 @@ import tempfile
 import glob as _glob
 import subprocess
 import hashlib
+import math
 from typing import List, Tuple, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pptx import Presentation
 import pypdf
 from PIL import Image, ImageStat, UnidentifiedImageError
+
+# Optional semantic search via OpenAI embeddings. If OPENAI_API_KEY is not set
+# or embeddings calls fail, code falls back to simple keyword containment.
+try:
+    from openai import OpenAI
+    _OPENAI_CLIENT = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if os.getenv("OPENAI_API_KEY") else None
+    _EMBED_MODEL = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+except Exception:
+    _OPENAI_CLIENT = None
+    _EMBED_MODEL = None
 
 # Optional imports used by the new evaluation-parameter loader
 try:
@@ -358,9 +368,54 @@ def load_document_content(file_path: str) -> Tuple[str, List[str]]:
 def _lower(s: Optional[str]) -> str:
     return (s or "").lower()
 
+def _cosine(a: List[float], b: List[float]) -> float:
+    try:
+        da = math.sqrt(sum(x * x for x in a))
+        db = math.sqrt(sum(x * x for x in b))
+        if da == 0 or db == 0:
+            return 0.0
+        return sum(x * y for x, y in zip(a, b)) / (da * db)
+    except Exception:
+        return 0.0
+
+
 def _hit_count(text: str, words: List[str]) -> int:
+    """
+    Prefer semantic matching (via OpenAI embeddings) when available. Returns
+    how many of the provided word/phrase patterns are considered present in
+    `text`.
+
+    Fallback: simple substring containment for environments without API key
+    or when embeddings calls fail.
+    """
+    if not text or not words:
+        return 0
+
+    # Try semantic route first if client is configured
+    if _OPENAI_CLIENT and _EMBED_MODEL:
+        try:
+            # Build inputs: first the full text, then each phrase
+            inputs = [text] + [str(w) for w in words]
+            resp = _OPENAI_CLIENT.embeddings.create(model=_EMBED_MODEL, input=inputs)
+            if not getattr(resp, "data", None):
+                raise ValueError("no embedding data")
+            emb_text = resp.data[0].embedding
+            count = 0
+            # threshold tuned to be permissive but avoid false positives
+            threshold = float(os.getenv("SEMANTIC_MATCH_THRESHOLD", "0.72"))
+            for i in range(1, len(inputs)):
+                emb_w = resp.data[i].embedding
+                sim = _cosine(emb_text, emb_w)
+                if sim >= threshold:
+                    count += 1
+            return count
+        except Exception:
+            # If embeddings fail for any reason, fall through to keyword check
+            pass
+
+    # Fallback - original keyword containment (case-insensitive)
     t = _lower(text)
-    return sum(1 for w in words if w in t)
+    return sum(1 for w in words if (w or "").lower() in t)
 
 def _strength(count: int) -> int:
     if count <= 0: return 0

@@ -1,6 +1,8 @@
 import os
 import asyncio
 from typing import Dict, Any, List
+# Qdrant integration
+from qdrant_integration import ingest_text, search
 
 from pydantic import BaseModel, field_validator
 from openai import OpenAI
@@ -38,6 +40,14 @@ class FeedbackAgent:
         self.eval_params = eval_params
         self.model = os.getenv("OPENAI_MODEL_TEXT", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
         self.timeout_s = int(os.getenv("LLM_TIMEOUT_S", "90"))
+
+    def store_feedback_embedding(self, feedback_text: str, payload: dict = None):
+        """Store feedback embedding in Qdrant."""
+        return ingest_text(feedback_text, payload)
+
+    def search_similar_feedback(self, query: str, top_k: int = 5):
+        """Search for similar feedback in Qdrant."""
+        return search(query, top_k)
         self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "2"))
         self.limiter = get_text_limiter()
 

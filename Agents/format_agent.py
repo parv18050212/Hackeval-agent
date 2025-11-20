@@ -152,7 +152,8 @@ class FormatAgent:
                 bg_means = []
                 for page in doc[: min(len(doc), 6)]:
                     pix = page.get_pixmap(matrix=fitz.Matrix(1, 1))
-                    import PIL.Image as PILImage, io as _io
+                    import PIL.Image as PILImage
+                    import io as _io
                     im = PILImage.open(_io.BytesIO(pix.tobytes("png"))).convert("L")
                     mean = sum(im.getdata()) / (im.width * im.height)
                     bg_means.append(round(mean, 1))

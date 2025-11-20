@@ -4,6 +4,8 @@ import asyncio
 import hashlib
 import random
 from typing import List, Optional, Dict
+# Qdrant integration
+from qdrant_integration import ingest_text, search
 
 from pydantic import BaseModel, field_validator
 from langchain_core.prompts import ChatPromptTemplate
@@ -21,6 +23,20 @@ class WorkflowStep(BaseModel):
     text: str
 
 
+
+class ScoringOutput(BaseModel):
+    team_name: str
+    scores: Dict[str, int]
+    summary: str
+
+    def store_scoring_embedding(self, scoring_text: str, payload: dict = None):
+        """Store scoring embedding in Qdrant."""
+        return ingest_text(scoring_text, payload)
+
+    def search_similar_scoring(self, query: str, top_k: int = 5):
+        """Search for similar scoring outputs in Qdrant."""
+        return search(query, top_k)
+
 class WorkflowOutput(BaseModel):
     overall: Optional[str] = None
     overall_summary: Optional[str] = None
@@ -32,13 +48,6 @@ class WorkflowOutput(BaseModel):
             "overall": self.overall or self.overall_summary or "",
             "steps": [s.model_dump() for s in self.steps],
         }
-
-
-class ScoringOutput(BaseModel):
-    team_name: str
-    scores: Dict[str, int]
-    summary: str
-    workflow_analysis: Optional[WorkflowOutput]
 
 
 class FeedbackOnly(BaseModel):
@@ -149,10 +158,14 @@ def _evidence_signals(doc_text: str, diagram_text: str, diag_count: int,
     signals["Presentation & Communication of Idea"] = _strength(pres_hits + pres_bonus)
 
     if fmt_0_5 is not None:
-        if fmt_0_5 >= 4.5: fmt_s = 3
-        elif fmt_0_5 >= 3.5: fmt_s = 2
-        elif fmt_0_5 >= 2.0: fmt_s = 1
-        else: fmt_s = 0
+        if fmt_0_5 >= 4.5:
+            fmt_s = 3
+        elif fmt_0_5 >= 3.5:
+            fmt_s = 2
+        elif fmt_0_5 >= 2.0:
+            fmt_s = 1
+        else:
+            fmt_s = 0
         signals["Format of the Presentation"] = fmt_s
     else:
         signals["Format of the Presentation"] = 1 + (1 if diag_count > 0 else 0)
@@ -188,9 +201,12 @@ def _stable_team_hash(context) -> int:
 
 
 def _target_band(signal: int) -> ScoreBand:
-    if signal <= 0: return (2, 6)
-    if signal == 1: return (4, 7)
-    if signal == 2: return (6, 9)
+    if signal <= 0:
+        return (2, 6)
+    if signal == 1:
+        return (4, 7)
+    if signal == 2:
+        return (6, 9)
     return (8, 10)
 
 
@@ -234,8 +250,10 @@ def _spread_within_team(scores: Dict[str, int], signals: Dict[str, int], team_h:
     if len(set(out.values())) < 4:
         hi = sorted(out.keys(), key=lambda x: (-signals.get(x, 0), x))[:3]
         lo = sorted(out.keys(), key=lambda x: (signals.get(x, 0), x))[:3]
-        for k in hi: out[k] = min(10, out[k] + 1)
-        for k in lo: out[k] = max(1, out[k] - 1)
+        for k in hi:
+            out[k] = min(10, out[k] + 1)
+        for k in lo:
+            out[k] = max(1, out[k] - 1)
     return out
 
 
@@ -467,7 +485,7 @@ Deck Text:
             else:
                 try:
                     context.update_feedback_results(dict(feedback_obj))
-                except:
+                except Exception:
                     print(f"  -> Warning: Could not convert feedback_obj to dict, type: {type(feedback_obj)}")
         
         print("  -> Combined scoring + feedback complete.")
